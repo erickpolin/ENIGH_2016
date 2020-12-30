@@ -209,7 +209,7 @@ y<-tapply(Conc$FACTOR_HOG,Conc$DECIL,sum)
 # se calcula el promedio (ingreso entre los hogares) tanto para el total como para cada uno de los deciles
 ing_cormed_t<-tapply(Conc$FACTOR_HOG*Conc$ING_COR,Conc$Nhog,sum)/x
 ing_cormed_d<-tapply(Conc$FACTOR_HOG*Conc$ING_COR,Conc$DECIL,sum)/y
-########################## C U A D R O S #################################
+########################## C U A D R O S 
 # guardamos los resultados en un data frame
 prom_rub <- data.frame (c(ing_cormed_t,ing_cormed_d))
 # agregamos el nombre a las filas
@@ -227,10 +227,12 @@ a<-gini(deciles_hog_ingcor$ingreso,weights=deciles_hog_ingcor$hogares)
 # se renombran las variables (columnas)
 names(prom_rub)=c("INGRESO CORRIENTE")
 names(a)="GINI"
-##### Mostramos el resultado en pantalla #####
+##### Mostramos el resultado en pantalla 
 round(prom_rub)
 round(a,3)
 
+Conc<-Conc%>%
+  mutate(Bottom_40=ifelse(DECIL<5,1,0))
 
 write.dbf(Conc,file="Conc_2016.dbf")
 
@@ -252,7 +254,7 @@ Conc2016<-read.dbf("Conc_2016.dbf",as.is = T)
 names(Conc2016)<-c("ENTIDAD","FOLIOVIV","FOLIOHOG","GASTO","TOT_INTEG","INGCOR","INGTRAB","TRABAJO","NEGOCIO",
                    "OTROS_TRAB","RENTAS","UTILIDAD","ARRENDA","TRANSFER","JUBILA","BECA","DONATIVO","REMESA",
                    "BENE_GOB","ESP_HOG","ESP_INST","ESTI","OTROS","FACTOR","UPM","EST_DIS","HOGARINDIG","NOMBRE_ENT",
-                   "DEFLACTORES","Nhog","TAM_DECIL","MAXT","ACUMULA","ACUMULA2","DECIL")
+                   "DEFLACTORES","Nhog","TAM_DECIL","MAXT","ACUMULA","ACUMULA2","DECIL","Bottom_40")
 
 mydesign <- svydesign(id=~UPM,strata=~EST_DIS,data=Conc2016,weights=~FACTOR)
 
@@ -697,7 +699,19 @@ all.equal(prueba$`ING COR2016`,prueba$prueba)
 
 Consumo_por_DECIL <- svyby(~GASTO,denominator=~Nhog,by=~DECIL,mydesign,svyratio)
 
-write.dbf(Consumo_por_DECIL,file = "Nacional Consumo  por DECIL 2016.dbf")
+Consumo_promedio <- svyratio(~GASTO,denominator=~Nhog,mydesign) 
+
+Consumo_por_DECIL <- Consumo_por_DECIL[[2]] 
+Consumo_promedio <- Consumo_promedio[[1]]
+
+Consumo<-data.frame(c(Consumo_promedio,Consumo_por_DECIL))
+
+DECILES<-c("PROMEDIO", "I", "II", "III","IV", "V", "VI", "VII", "VIII", "IX","X")
+
+row.names(Consumo)<-DECILES
+
+
+write.dbf(Consumo,file = "Nacional Consumo  por DECIL 2016.dbf")
 write.dbf(c_DECIL_ES,file = "Nacional por fuente por DECIL estimaciones 2016.dbf")
 write.dbf(c_DECIL_SE,file = "Nacional por fuente por DECIL errores standard 2016.dbf")
 write.dbf(c_DECIL_CV,file = "Nacional por fuente por DECIL CV 2016.dbf")
@@ -705,3 +719,57 @@ write.dbf(c_DECIL_LI,file = "Nacional por fuente por DECIL LI 2016.dbf")
 write.dbf(c_DECIL_ES,file = "Nacional por fuente por DECIL LS 2016.dbf")
 
 rm(list = ls())
+
+################## Bottom 40 #############
+library(foreign)
+library(survey)
+library(doBy)
+library(reldist)
+library(tidyverse)
+options(survey.lonely.psu="adjust")
+
+#reading the data
+setwd("C:/Users/Erick/Dropbox/GIC/GITHUB2018/GIC/ENIGH_2016/ENIGH_2016/")
+Conc2016<-read.dbf("Conc_2016.dbf",as.is = T)
+
+
+names(Conc2016)<-c("ENTIDAD","FOLIOVIV","FOLIOHOG","GASTO","TOT_INTEG","INGCOR","INGTRAB","TRABAJO","NEGOCIO",
+                   "OTROS_TRAB","RENTAS","UTILIDAD","ARRENDA","TRANSFER","JUBILA","BECA","DONATIVO","REMESA",
+                   "BENE_GOB","ESP_HOG","ESP_INST","ESTI","OTROS","FACTOR","UPM","EST_DIS","HOGARINDIG","NOMBRE_ENT",
+                   "DEFLACTORES","Nhog","TAM_DECIL","MAXT","ACUMULA","ACUMULA2","DECIL","Bottom_40")
+
+mydesign <- svydesign(id=~UPM,strata=~EST_DIS,data=Conc2016,weights=~FACTOR)
+
+Ming_corTot <- svyratio(~INGCOR,denominator=~Nhog,mydesign) 
+
+#ahora, vamos a hacer lo mismo por decil
+#aqu? cmabia la funci?n a svyby, en by va el decil que creamos.
+#y al final va la funci?n que queremos
+Ming_corbottom_40_income <- svyby(~INGCOR,denominator=~Nhog,by=~Bottom_40,mydesign,svyratio)
+
+ingreso_promedio<-Ming_corTot[[1]]
+
+ingres_por_bottom<-Ming_corbottom_40_income[[2]]
+
+bottom_por_ingresos<-data.frame(c(ingreso_promedio,ingres_por_bottom))
+
+write.dbf(bottom_por_ingresos,file = "bottom_por_ingresos_2010.dbf")
+
+
+
+Consumo_promedio <- svyratio(~GASTO,denominator=~Nhog,mydesign) 
+
+Consumo_por_bottom <- svyby(~GASTO,denominator=~Nhog,by=~Bottom_40,mydesign,svyratio)
+
+
+Consumo_por_bottom <- Consumo_por_bottom[[2]] 
+Consumo_promedio <- Consumo_promedio[[1]]
+
+Consumo<-data.frame(c(Consumo_promedio,Consumo_por_bottom))
+
+
+write.dbf(Consumo,file = "Consumo_por_bottom_2010.dbf")
+
+
+
+
